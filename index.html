@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Blog Scraper Sakurazaka46</title>
+<style>
+    body { font-family: Arial; padding: 20px; max-width: 800px; margin: auto; }
+    input { width: 100%; padding: 10px; font-size: 16px; }
+    button { padding: 10px 15px; margin-top: 10px; font-size: 16px; }
+    #result { margin-top: 30px; padding: 20px; background: #f8f8f8; border-radius: 8px; }
+</style>
+</head>
+<body>
+
+<h2>Ambil Box Artikel dari Blog Sakurazaka46</h2>
+
+<input id="urlInput" placeholder="Tempel link blog Sakurazaka46 di sini">
+<button onclick="scrape()">Ambil Artikel</button>
+
+<div id="result"></div>
+
+<script>
+async function scrape() {
+    const url = document.getElementById("urlInput").value;
+    const resultDiv = document.getElementById("result");
+
+    if (!url) {
+        alert("Masukkan URL dulu!");
+        return;
+    }
+
+    resultDiv.innerHTML = "Mengambil data...";
+
+    try {
+        // Proxy untuk bypass CORS
+        const proxyURL = "https://api.allorigins.win/get?url=" + encodeURIComponent(url);
+
+        const res = await fetch(proxyURL);
+        const data = await res.json();
+
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(data.contents, "text/html");
+
+        // extract div.box-article
+        const article = doc.querySelector("div.box-article");
+
+        if (!article) {
+            resultDiv.innerHTML = "<p>Tidak menemukan <div class='box-article'></div></p>";
+            return;
+        }
+
+        // bersihkan HTML
+        let cleanHTML = article.innerHTML
+            .replace(/\s+/g, " ")         // rapikan spasi
+            .replace(/<br\s*\/?>/gi, "<br>")  // pastikan <br> rapi
+            .trim();
+
+        resultDiv.innerHTML = `
+            <h3>Hasil:</h3>
+            <div>${cleanHTML}</div>
+        `;
+    } catch (err) {
+        resultDiv.innerHTML = "<p>Terjadi kesalahan: " + err.message + "</p>";
+    }
+}
+</script>
+
+</body>
+</html>
