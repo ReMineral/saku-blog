@@ -59,7 +59,6 @@ async function scrape() {
     } catch (err) {
         document.getElementById("resultFinal").innerHTML = "Error: " + err.message;
     }
-    document.getElementById("finalContent").textContent = finalLines.join("\n");
 }
 
 // ------------------- OUTPUT FINAL -------------------
@@ -75,24 +74,22 @@ async function buildOutputFinal() {
     }
 
     let promises = articleLines.map(async line => {
-        // ambil text untuk translate dan romaji, tapi tetap simpan tag utuh di output
         let textOnly = line.replace(/<[^>]+>/g, "").trim();
-        if(textOnly.length === 0) return line; // baris hanya tag
+        if(textOnly.length === 0) return line;
 
         let terjemah = await translate(textOnly);
         let romaji = wanakana.toRomaji(textOnly);
 
-        // Tambahkan <br /> di akhir block supaya ketika dicopy ke blog ada baris kosong
-         return `${line}<br />\n→ ${terjemah}<br />\n${romaji}<br />`;
+        return `${line}<br />\n→ ${terjemah}<br />\n${romaji}<br />`;
     });
 
     let finalLines = await Promise.all(promises);
 
-    // tampilkan menggunakan textContent supaya tag tetap terlihat
+    // Tombol copy ditempatkan di atas <pre>
     document.getElementById("resultFinal").innerHTML = `
         <h3>OUTPUT — Blog + Terjemahan + Romaji</h3>
-        <pre id="finalContent"></pre>
         <button onclick="copyFinal()">Copy</button>
+        <pre id="finalContent"></pre>
     `;
 
     document.getElementById("finalContent").textContent = finalLines.join("\n");
