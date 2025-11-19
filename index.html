@@ -15,14 +15,12 @@
 </head>
 <body>
 
-<h2>Ambil Box Artikel (Romaji + Terjemahan + Kanji→Romaji)</h2>
+<h2>Ambil Box Artikel (Tag Mentah + Terjemahan + Romaji)</h2>
 
 <input id="urlInput" placeholder="Tempel link blog Sakurazaka46 di sini">
 <button onclick="scrape()">Ambil Artikel</button>
 
-<div id="result2"></div>
-<div id="result3"></div>
-<div id="result4"></div>
+<div id="resultFinal"></div>
 
 <script>
 let articleLines = [];
@@ -34,18 +32,11 @@ kuromoji.builder({ dicPath: "https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dict/" 
     kuromojiTokenizer = tokenizer;
 });
 
-// escape HTML agar tag tampil mentah
-function escapeHTML(str) {
-    return str.replace(/&/g, "&amp;")
-              .replace(/</g, "&lt;")
-              .replace(/>/g, "&gt;");
-}
-
 // ------------------- Scrape -------------------
 async function scrape() {
     const url = document.getElementById("urlInput").value;
     if (!url) return alert("Masukkan URL dulu!");
-    document.getElementById("result2").innerHTML = "Mengambil data...";
+    document.getElementById("resultFinal").innerHTML = "Mengambil data...";
 
     try {
         const proxyURL = "https://api.allorigins.win/get?url=" + encodeURIComponent(url);
@@ -56,7 +47,7 @@ async function scrape() {
         const doc = parser.parseFromString(data.contents, "text/html");
         const article = doc.querySelector("div.box-article");
         if (!article) {
-            result2.innerHTML = "Tidak menemukan box-article";
+            document.getElementById("resultFinal").innerHTML = "Tidak menemukan box-article";
             return;
         }
 
@@ -65,52 +56,27 @@ async function scrape() {
         // tambahkan sakurazaka46.com ke semua src gambar
         html = html.replace(/<img\s+src="(\/[^"]*)"/g, '<img src="https://sakurazaka46.com$1"');
 
+        // split menjadi baris sesuai <br>
         articleLines = html
             .replace(/<br\s*\/?>/gi, "<br>")
             .split(/(<br>)/)
             .map(line => line.trim())
             .filter(line => line.length > 0);
 
-        buildOutput2();
-        await buildOutput3();
-        buildOutput4();
+        await buildOutputFinal();
 
     } catch (err) {
-        document.getElementById("result2").innerHTML = "Error: " + err.message;
+        document.getElementById("resultFinal").innerHTML = "Error: " + err.message;
     }
 }
 
-// ------------------- OUTPUT 2 -------------------
-function nodeToRomaji(node){
-    if(node.nodeType === Node.TEXT_NODE){
-        return wanakana.toRomaji(node.textContent);
+// ------------------- OUTPUT FINAL -------------------
+async function buildOutputFinal() {
+    if(!kuromojiTokenizer) {
+        document.getElementById("resultFinal").innerHTML = "Kuromoji belum siap, tunggu sebentar...";
+        return;
     }
-    if(node.nodeType === Node.ELEMENT_NODE){
-        let tagStart = "&lt;" + node.nodeName.toLowerCase();
-        for(let attr of node.attributes){
-            tagStart += ` ${attr.name}="${escapeHTML(attr.value)}"`;
-        }
-        tagStart += "&gt;";
-        let children = Array.from(node.childNodes).map(nodeToRomaji).join("");
-        let tagEnd = "&lt;/" + node.nodeName.toLowerCase() + "&gt;";
-        return tagStart + children + tagEnd;
-    }
-    return "";
-}
 
-function buildOutput2() {
-    const wrapper = document.createElement("div");
-    wrapper.innerHTML = articleLines.join("\n");
-    const output2 = Array.from(wrapper.childNodes).map(nodeToRomaji).join("\n");
-
-    document.getElementById("result2").innerHTML = `
-        <h3>OUTPUT 2 — Versi Romaji (Tag Mentah)</h3>
-        <pre>${output2}</pre>
-    `;
-}
-
-// ------------------- OUTPUT 3 -------------------
-async function buildOutput3() {
     async function translate(text){
         try {
             const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=ja&tl=id&dt=t&q=${encodeURIComponent(text)}`);
@@ -122,44 +88,36 @@ async function buildOutput3() {
     }
 
     let promises = articleLines.map(async line => {
-        let textOnly = line.replace(/<[^>]+>/g, "").replace(/\n/g, " ").trim();
-        if(textOnly.length === 0) return "";
-        let terjemah = await translate(textOnly);
-        return `${textOnly}\n→ ${terjemah}`;
-    });
-
-    let output3Lines = await Promise.all(promises);
-
-    document.getElementById("result3").innerHTML = `
-        <h3>OUTPUT 3 — Terjemahan Indonesia Rapih</h3>
-        <pre>${output3Lines.filter(l => l).join("\n\n")}</pre>
-    `;
-}
-
-// ------------------- OUTPUT 4 -------------------
-function buildOutput4() {
-    if(!kuromojiTokenizer) {
-        document.getElementById("result4").innerHTML = "Kuromoji belum siap, tunggu sebentar...";
-        return;
-    }
-
-    let linesRomaji = articleLines.map(line => {
         let textOnly = line.replace(/<[^>]+>/g, "").trim();
         if(textOnly.length === 0) return "";
 
+        // terjemahan
+        let terjemah = await translate(textOnly);
+
+        // romaji
         let tokens = kuromojiTokenizer.tokenize(textOnly);
-        let romajiLine = tokens.map(tok => {
+        let romaji = tokens.map(tok => {
             let reading = tok.reading || tok.surface_form;
             return wanakana.toRomaji(reading);
-        }).join(" ");
+        }).join("");
 
-        return `${textOnly}\n→ ${romajiLine}`;
+        return `${line}\n→ ${terjemah}\n${romaji}`;
     });
 
-    document.getElementById("result4").innerHTML = `
-        <h3>OUTPUT 4 — Kanji diromaji-kan (Kuromoji + Wanakana)</h3>
-        <pre>${linesRomaji.filter(l => l).join("\n\n")}</pre>
+    let finalLines = await Promise.all(promises);
+
+    document.getElementById("resultFinal").innerHTML = `
+        <h3>OUTPUT — Blog + Terjemahan + Romaji</h3>
+        <pre id="finalContent">${finalLines.filter(l => l).join("\n\n")}</pre>
+        <button onclick="copyFinal()">Copy</button>
     `;
+}
+
+function copyFinal() {
+    const content = document.getElementById("finalContent").innerText;
+    navigator.clipboard.writeText(content).then(() => {
+        alert("Teks berhasil dicopy!");
+    });
 }
 </script>
 
