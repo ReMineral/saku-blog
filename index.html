@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Scraper Blog Sakurazaka46 (Hanya Wanakana)</title>
+<title>Scraper Blog Sakurazaka46 (Tag Mentah + Terjemahan + Romaji)</title>
 <script src="https://unpkg.com/wanakana"></script>
 <style>
     body { font-family: Arial; padding: 20px; max-width: 900px; margin: auto; }
@@ -48,10 +48,9 @@ async function scrape() {
         // tambahkan sakurazaka46.com ke semua src gambar
         html = html.replace(/<img\s+src="(\/[^"]*)"/g, '<img src="https://sakurazaka46.com$1"');
 
-        // split menjadi baris sesuai <br>
+        // split menjadi baris sesuai <br>, tetap menyertakan tag
         articleLines = html
-            .replace(/<br\s*\/?>/gi, "<br>")
-            .split(/(<br>)/)
+            .split(/(<br\s*\/?>)/i)
             .map(line => line.trim())
             .filter(line => line.length > 0);
 
@@ -60,6 +59,7 @@ async function scrape() {
     } catch (err) {
         document.getElementById("resultFinal").innerHTML = "Error: " + err.message;
     }
+    document.getElementById("finalContent").textContent = finalLines.join("\n");
 }
 
 // ------------------- OUTPUT FINAL -------------------
@@ -75,29 +75,31 @@ async function buildOutputFinal() {
     }
 
     let promises = articleLines.map(async line => {
+        // ambil text untuk translate dan romaji, tapi tetap simpan tag utuh di output
         let textOnly = line.replace(/<[^>]+>/g, "").trim();
-        if(textOnly.length === 0) return "";
+        if(textOnly.length === 0) return line; // baris hanya tag
 
-        // terjemahan
         let terjemah = await translate(textOnly);
-
-        // romaji via Wanakana
         let romaji = wanakana.toRomaji(textOnly);
 
-        return `${line}\n→ ${terjemah}\n${romaji}`;
+        // Tambahkan <br /> di akhir block supaya ketika dicopy ke blog ada baris kosong
+         return `${line}<br />\n→ ${terjemah}<br />\n${romaji}<br />`;
     });
 
     let finalLines = await Promise.all(promises);
 
+    // tampilkan menggunakan textContent supaya tag tetap terlihat
     document.getElementById("resultFinal").innerHTML = `
         <h3>OUTPUT — Blog + Terjemahan + Romaji</h3>
-        <pre id="finalContent">${finalLines.filter(l => l).join("\n\n")}</pre>
+        <pre id="finalContent"></pre>
         <button onclick="copyFinal()">Copy</button>
     `;
+
+    document.getElementById("finalContent").textContent = finalLines.join("\n");
 }
 
 function copyFinal() {
-    const content = document.getElementById("finalContent").innerText;
+    const content = document.getElementById("finalContent").textContent;
     navigator.clipboard.writeText(content).then(() => {
         alert("Teks berhasil dicopy!");
     });
