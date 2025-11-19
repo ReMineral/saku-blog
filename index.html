@@ -2,9 +2,8 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Scraper Blog Sakurazaka46</title>
+<title>Scraper Blog Sakurazaka46 (Hanya Wanakana)</title>
 <script src="https://unpkg.com/wanakana"></script>
-<script src="https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dist/kuromoji.js"></script>
 <style>
     body { font-family: Arial; padding: 20px; max-width: 900px; margin: auto; }
     input { width: 100%; padding: 10px; font-size: 16px; }
@@ -15,7 +14,7 @@
 </head>
 <body>
 
-<h2>Ambil Box Artikel (Tag Mentah + Terjemahan + Romaji)</h2>
+<h2>Ambil Box Artikel (Tag Mentah + Terjemahan + Romaji via Wanakana)</h2>
 
 <input id="urlInput" placeholder="Tempel link blog Sakurazaka46 di sini">
 <button onclick="scrape()">Ambil Artikel</button>
@@ -24,13 +23,6 @@
 
 <script>
 let articleLines = [];
-let kuromojiTokenizer = null;
-
-// Load Kuromoji dictionary
-kuromoji.builder({ dicPath: "https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dict/" }).build((err, tokenizer) => {
-    if(err) { console.error(err); return; }
-    kuromojiTokenizer = tokenizer;
-});
 
 // ------------------- Scrape -------------------
 async function scrape() {
@@ -72,11 +64,6 @@ async function scrape() {
 
 // ------------------- OUTPUT FINAL -------------------
 async function buildOutputFinal() {
-    if(!kuromojiTokenizer) {
-        document.getElementById("resultFinal").innerHTML = "Kuromoji belum siap, tunggu sebentar...";
-        return;
-    }
-
     async function translate(text){
         try {
             const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=ja&tl=id&dt=t&q=${encodeURIComponent(text)}`);
@@ -94,12 +81,8 @@ async function buildOutputFinal() {
         // terjemahan
         let terjemah = await translate(textOnly);
 
-        // romaji
-        let tokens = kuromojiTokenizer.tokenize(textOnly);
-        let romaji = tokens.map(tok => {
-            let reading = tok.reading || tok.surface_form;
-            return wanakana.toRomaji(reading);
-        }).join("");
+        // romaji via Wanakana
+        let romaji = wanakana.toRomaji(textOnly);
 
         return `${line}\n→ ${terjemah}\n${romaji}`;
     });
