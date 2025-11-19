@@ -2,65 +2,91 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Blog Scraper Sakurazaka46</title>
+<title>Scraper Blog Sakurazaka46 (3 Output)</title>
+
+<!-- Wanakana CDN untuk romaji -->
+<script src="https://unpkg.com/wanakana"></script>
+
 <style>
-    body { font-family: Arial; padding: 20px; max-width: 800px; margin: auto; }
+    body { font-family: Arial; padding: 20px; max-width: 900px; margin: auto; }
     input { width: 100%; padding: 10px; font-size: 16px; }
     button { padding: 10px 15px; margin-top: 10px; font-size: 16px; }
-    #result { margin-top: 30px; padding: 20px; background: #f8f8f8; border-radius: 8px; }
+    h3 { margin-top: 40px; }
+    pre { background: #f0f0f0; padding: 15px; border-radius: 6px; white-space: pre-wrap; }
 </style>
 </head>
 <body>
 
-<h2>Ambil Box Artikel dari Blog Sakurazaka46</h2>
+<h2>Ambil Box Artikel (HTML + Romaji + Terjemahan)</h2>
 
 <input id="urlInput" placeholder="Tempel link blog Sakurazaka46 di sini">
 <button onclick="scrape()">Ambil Artikel</button>
 
-<div id="result"></div>
+<div id="result1"></div>
+<div id="result2"></div>
+<div id="result3"></div>
 
 <script>
 async function scrape() {
     const url = document.getElementById("urlInput").value;
-    const resultDiv = document.getElementById("result");
+    if (!url) return alert("Masukkan URL dulu!");
 
-    if (!url) {
-        alert("Masukkan URL dulu!");
-        return;
-    }
-
-    resultDiv.innerHTML = "Mengambil data...";
+    document.getElementById("result1").innerHTML = "Mengambil data...";
 
     try {
-        // Proxy untuk bypass CORS
         const proxyURL = "https://api.allorigins.win/get?url=" + encodeURIComponent(url);
-
         const res = await fetch(proxyURL);
         const data = await res.json();
 
         const parser = new DOMParser();
         const doc = parser.parseFromString(data.contents, "text/html");
 
-        // extract div.box-article
         const article = doc.querySelector("div.box-article");
-
         if (!article) {
-            resultDiv.innerHTML = "<p>Tidak menemukan <div class='box-article'></div></p>";
+            result1.innerHTML = "Tidak menemukan box-article";
             return;
         }
 
-        // bersihkan HTML
-        let cleanHTML = article.innerHTML
-            .replace(/\s+/g, " ")         // rapikan spasi
-            .replace(/<br\s*\/?>/gi, "<br>")  // pastikan <br> rapi
-            .trim();
+        // HTML asli dari artikel
+        let html = article.innerHTML;
 
-        resultDiv.innerHTML = `
-            <h3>Hasil:</h3>
-            <div>${cleanHTML}</div>
+        // ---- OUTPUT 1: HTML RAPI PER BARIS ----
+        let lines = html
+            .replace(/<br\s*\/?>/gi, "<<<BR>>>") 
+            .split("<<<BR>>>")
+            .map(line => line.trim())
+            .filter(line => line.length > 0);
+
+        let output1 = lines.join("\n");
+
+        document.getElementById("result1").innerHTML = `
+            <h3>OUTPUT 1 — HTML Rapih Per Baris</h3>
+            <pre>${output1}</pre>
         `;
+
+        // ---- OUTPUT 2: ROMAJI ----
+        let output2Lines = lines.map(line =>
+            wanakana.toRomaji(line)
+        );
+        let output2 = output2Lines.join("\n");
+
+        document.getElementById("result2").innerHTML = `
+            <h3>OUTPUT 2 — Versi Romaji</h3>
+            <pre>${output2}</pre>
+        `;
+
+        // ---- OUTPUT 3: TEMPLATE Terjemahan Indonesia ----
+        let output3 = lines.map((line, i) =>
+            `${i+1}. ${line}\n   → (arti Indonesia di sini)`
+        ).join("\n\n");
+
+        document.getElementById("result3").innerHTML = `
+            <h3>OUTPUT 3 — Arti Per Baris (Template)</h3>
+            <pre>${output3}</pre>
+        `;
+
     } catch (err) {
-        resultDiv.innerHTML = "<p>Terjadi kesalahan: " + err.message + "</p>";
+        document.getElementById("result1").innerHTML = "Error: " + err.message;
     }
 }
 </script>
