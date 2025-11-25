@@ -109,8 +109,11 @@ async function geminiCall(prompt) {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }]
-                })
+    prompt: [{ text: prompt }],
+    temperature: 0,
+    maxOutputTokens: 1024
+})
+
             }
         );
 
