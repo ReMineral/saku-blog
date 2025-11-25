@@ -47,147 +47,81 @@ pre {
 </div>
 
 <script>
-let articleLines = [];
-
-/* ============================================================
-   SCRAPER — menggunakan CORS PROXY VERCEL
-============================================================ */
+// Fungsi untuk scrape artikel
 async function scrape() {
-    const url = document.getElementById("urlInput").value;
-    if (!url) return alert("Masukkan URL!");
+    const url = document.getElementById('urlInput').value;
+    if (!url) return alert('Masukkan URL blog dulu!');
 
-    document.getElementById("resultFinal").innerHTML =
-        `<div class="text-secondary">Mengambil data...</div>`;
+    // Tampilkan loading
+    const resultDiv = document.getElementById('resultFinal');
+    resultDiv.innerHTML = `
+        <div class="progress mb-2">
+            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"
+                 style="width: 100%">Memuat artikel...</div>
+        </div>
+    `;
 
     try {
-        const proxyURL =
-            "https://cors-proxy1.vercel.app/api/proxy?url=" +
-            encodeURIComponent(url);
+        // Fetch halaman
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Gagal ambil halaman');
+        let htmlText = await res.text();
 
-        const res = await fetch(proxyURL);
-        const htmlText = await res.text();
-
+        // Buat DOM parser
         const parser = new DOMParser();
-        const doc = parser.parseFromString(htmlText, "text/html");
+        const doc = parser.parseFromString(htmlText, 'text/html');
 
-        const article = doc.querySelector("div.box-article");
+        // Cari semua box-article
+        const articles = Array.from(doc.querySelectorAll('.box-article'));
+        if (articles.length === 0) throw new Error('Tidak ada <div class="box-article"> ditemukan');
 
-        if (!article) {
-            document.getElementById("resultFinal").innerHTML =
-                `<div class="text-danger">Gagal menemukan box-article</div>`;
-            return;
+        // Simpan isi artikel di memory browser
+        const articleContents = articles.map(div => div.innerHTML);
+        sessionStorage.setItem('scrapedArticles', JSON.stringify(articleContents));
+
+        // Perbaiki link gambar
+        const fixedArticles = articleContents.map(html => 
+            html.replace(/<img\s+[^>]*src="(?!https?:\/\/)([^"]+)"/g, '<img src="https://sakurazaka46.com/$1"')
+        );
+
+        resultDiv.innerHTML = `<div class="progress mb-2">
+            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"
+                 style="width: 100%">Mengirim ke AI untuk diterjemahkan...</div>
+        </div>`;
+
+        // Kirim ke Gemini AI (pseudo, sesuaikan API sebenarnya)
+        const translatedArticles = [];
+        for (let html of fixedArticles) {
+            const plainText = html.replace(/<[^>]+>/g, '\n'); // Ambil teks saja
+
+            // Contoh prompt hemat kuota:
+            const prompt = `
+Terjemahkan teks berikut dari Jepang ke Indonesia per kata per baris.
+Format: 
+1. Kata Jepang asli
+2. Romaji
+3. Terjemahan
+Tetap pertahankan line break.
+Teks: ${plainText}
+            `;
+
+            // Panggil API Gemini (contoh pseudocode, ganti dengan implementasi nyata)
+            const aiRes = await fakeGeminiTranslate(prompt);
+            translatedArticles.push(aiRes);
         }
 
-        // Perbaiki URL gambar
-        let html = article.innerHTML.replace(
-            /<img\s+src="(\/[^"]*)"/g,
-            '<img src="https://sakurazaka46.com$1"'
-        );
-
-        // Pecah berdasarkan <br>
-        articleLines = html
-            .split(/(<br\s*\/?>)/i)
-            .map(l => l.trim())
-            .filter(l => l.length > 0);
-
-        await buildOutputFinal();
-
+        // Tampilkan hasil
+        resultDiv.innerHTML = translatedArticles.map(tr => `<pre>${tr}</pre>`).join('<hr>');
     } catch (err) {
-        document.getElementById("resultFinal").innerHTML =
-            `<div class="text-danger">ERROR: ${err.message}</div>`;
+        resultDiv.innerHTML = `<div class="text-danger">Error: ${err.message}</div>`;
     }
 }
 
-/* ============================================================
-   GEMINI (single-request mode)
-============================================================ */
-async function geminiCall(prompt) {
-    try {
-        const res = await fetch(
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIzaSyD9HGZ6pIVouEgiaTS_dFnVod-kafD0RWk",
-            {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }]
-                })
-            }
-        );
-
-        return await res.json();
-
-    } catch (err) {
-        return { error: err.message };
-    }
-}
-
-/* ============================================================
-   BUILD OUTPUT (tag asli + romaji + terjemahan)
-============================================================ */
-async function buildOutputFinal() {
-
-    let escapedBlocks = [];
-    let textBlocks = [];
-
-    for (let line of articleLines) {
-
-        const escaped = line
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;");
-
-        const textOnly = line.replace(/<[^>]+>/g, "").trim();
-        if (!textOnly) continue;
-
-        escapedBlocks.push(escaped);
-        textBlocks.push(textOnly);
-    }
-
-    const prompt =
-`Berikut daftar kalimat Jepang.
-Untuk setiap BARIS:
-- Hasilkan ROMAJI secara akurat.
-- Hasilkan TERJEMAH ke Bahasa Indonesia.
-Format:
-
-ROMAJI: ...
-INDO: ...
-
-==========================
-
-` + textBlocks.map((t,i)=>`BARIS ${i+1}: ${t}`).join("\n");
-
-    const ai = await geminiCall(prompt);
-
-    if (!ai.candidates) {
-        document.getElementById("resultFinal").innerHTML =
-            `<div class='text-danger'>Gagal parse JSON AI.<br>${JSON.stringify(ai)}</div>`;
-        return;
-    }
-
-    const aiText = ai.candidates[0].content.parts[0].text;
-
-    const blocks = aiText.split(/BARIS \d+:/).slice(1);
-
-    const final = blocks.map((blk, i) => {
-        const romaji = (blk.match(/ROMAJI:\s*([\s\S]*?)INDO:/) || ["",""])[1].trim();
-        const indo   = (blk.match(/INDO:\s*([\s\S]*)/) || ["",""])[1].trim();
-
-        return `${escapedBlocks[i]}\n${romaji}\n${indo}\n`;
-    });
-
-    document.getElementById("resultFinal").innerHTML = `
-        <h3 class="text-purple">OUTPUT — Tag Mentah + Romaji + Terjemahan</h3>
-        <button class="btn btn-primary mb-3" onclick="copyFinal()">Copy</button>
-        <pre id="finalContent">${final.join("\n")}</pre>
-    `;
-}
-
-/* ============================================================
-   COPY
-============================================================ */
-function copyFinal() {
-    const text = document.getElementById("finalContent").textContent;
-    navigator.clipboard.writeText(text).then(() => alert("Copied!"));
+// Pseudo-fungsi Gemini, ganti dengan panggilan API asli
+async function fakeGeminiTranslate(prompt) {
+    // Simulasi delay
+    await new Promise(r => setTimeout(r, 1000));
+    return prompt.split('\n').map(l => l || '').join('\n'); // balikkan sebagai dummy
 }
 </script>
 
