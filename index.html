@@ -3,7 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <title>Scraper Blog Sakurazaka46 (Tag Mentah + Terjemahan + Romaji)</title>
-<script src="https://unpkg.com/wanakana"></script>
 <!-- Bootstrap 5 CSS -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 
@@ -27,13 +26,13 @@ body::before {
     left:0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0,0,0,0.4); /* overlay gelap 40% */
+    background-color: rgba(0,0,0,0.4);
     z-index: 0;
 }
 
 /* --- Container --- */
 .container-scraper {
-    position: relative; /* di atas overlay */
+    position: relative;
     z-index: 1;
     max-width: 900px;
     width: 90%;
@@ -43,11 +42,9 @@ body::before {
     box-shadow: 0 8px 20px rgba(0,0,0,0.3);
 }
 
-/* --- Typography --- */
 h2 { margin-bottom: 20px; color: #0984e3; display: flex; justify-content: center;}
 h3 { margin-top: 30px; margin-bottom: 10px; color: #6c5ce7; }
 
-/* --- Input & Button --- */
 input {
     width: 100%;
     padding: 12px;
@@ -73,7 +70,6 @@ button {
 }
 button:hover { background: #019875; }
 
-/* --- Output Container --- */
 #resultFinal {
     background: #fff;
     border-radius: 12px;
@@ -86,23 +82,18 @@ pre {
     padding: 15px;
     border-radius: 8px;
     overflow-x: auto;
-    overflow-y: auto;      /* aktifkan scroll vertikal */
-    max-height: 600px;     /* tinggi maksimum kotak output */
+    overflow-y: auto;
+    max-height: 600px;
     white-space: pre-wrap;
     word-break: break-word;
     font-size: 14px;
     margin-top: 10px;
 }
-.text-danger
-    display: flex;
-    justify-content: center;
 
-/* Tombol copy di atas pre */
-#resultFinal button {
-    margin-bottom: 10px;
-}
+.text-danger { display: flex; justify-content: center; }
 
-/* Responsive */
+#resultFinal button { margin-bottom: 10px; }
+
 @media(max-width: 600px){
     input, button { font-size: 14px; padding: 10px; }
     pre { font-size: 13px; }
@@ -113,10 +104,8 @@ pre {
 
 <div class="container-scraper">
   <h2>SAKAMICHI ARTICLE GRABBER</h2>
-
   <input id="urlInput" placeholder="Tempel link blog Sakurazaka46 di sini">
   <button onclick="scrape()">Ambil Artikel</button>
-
   <div id="resultFinal"></div>
 </div>
 
@@ -130,12 +119,13 @@ async function scrape() {
     document.getElementById("resultFinal").innerHTML = `<div class="text-secondary">Mengambil data...</div>`;
 
     try {
-        const proxyURL = "https://api.allorigins.win/get?url=" + encodeURIComponent(url);
+        // pakai proxy cors-proxy1.vercel.app
+        const proxyURL = "https://cors-proxy1.vercel.app/api/fetch?url=" + encodeURIComponent(url);
         const res = await fetch(proxyURL);
-        const data = await res.json();
+        const htmlText = await res.text();
 
         const parser = new DOMParser();
-        const doc = parser.parseFromString(data.contents, "text/html");
+        const doc = parser.parseFromString(htmlText, "text/html");
         const article = doc.querySelector("div.box-article");
         if (!article) {
             document.getElementById("resultFinal").innerHTML = `<div class="text-danger">Tidak menemukan box-article</div>`;
@@ -157,47 +147,55 @@ async function scrape() {
     }
 }
 
-// ------------------- OUTPUT FINAL -------------------
+// ------------------- OUTPUT FINAL (batch via proxy) -------------------
 async function buildOutputFinal() {
 
     async function geminiCall(prompt) {
         try {
-            const res = await fetch(
-                "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIzaSyBFMgAVBEqTI1QfGWaPj1nGt1QdY4um85M",
-                {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }]
-                    })
-                }
-            );
+            // proxy Gemini via cors-proxy1
+            const proxyURL = "https://cors-proxy1.vercel.app/api/gemini";
+            const res = await fetch(proxyURL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ prompt })
+            });
             const data = await res.json();
-            return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-        } 
-        catch (err) {
+            return data.text || "(error AI)";
+        } catch (err) {
             return "(error AI)";
         }
     }
 
     const finalLines = [];
+    const batchSize = 10; // jumlah baris per request
 
-    for (let line of articleLines) {
-        const textOnly = line.replace(/<[^>]+>/g, "").trim();
-        if (!textOnly) continue;
+    for (let i = 0; i < articleLines.length; i += batchSize) {
+        const batch = articleLines.slice(i, i + batchSize)
+            .map(l => l.replace(/<[^>]+>/g, "").trim())
+            .filter(l => l.length > 0)
+            .join("\n");
 
-        // 1️⃣ ROMAJI via Gemini
-        const romaji = await geminiCall(
-            `Ubah teks Jepang berikut menjadi romaji yang benar, hanya romaji tanpa penjelasan tambahan:\n\n${textOnly}`
-        );
+        if (!batch) continue;
 
-        // 2️⃣ TERJEMAHAN via Gemini
-        const terjemah = await geminiCall(
-            `Terjemahkan teks Jepang berikut ke bahasa Indonesia, berikan hanya hasilnya tanpa penjelasan:\n\n${textOnly}`
-        );
+        const prompt = `
+Ubah teks Jepang berikut menjadi ROMAJI dan TERJEMAHAN bahasa Indonesia.
+Format output:
+ROMAJI:
+<romaji>
+TERJEMAHAN:
+<terjemahan>
 
-        // Output 2 baris
-        finalLines.push(`${romaji}\n${terjemah}\n`);
+Teks:
+${batch}
+`;
+
+        const result = await geminiCall(prompt);
+
+        const entries = result.split(/\n(?=ROMAJI:|TERJEMAHAN:)/)
+                              .map(s => s.trim())
+                              .filter(s => s.length > 0);
+
+        finalLines.push(...entries);
     }
 
     document.getElementById("resultFinal").innerHTML = `
@@ -207,10 +205,8 @@ async function buildOutputFinal() {
             <pre id="finalContent" class="mb-0"></pre>
         </div>
     `;
-
-    document.getElementById("finalContent").textContent = finalLines.join("\n");
+    document.getElementById("finalContent").textContent = finalLines.join("\n\n");
 }
-
 
 // Copy
 function copyFinal() {
