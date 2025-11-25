@@ -47,7 +47,9 @@ pre {
 </div>
 
 <script>
-let articleLines = [];
+const PROXY_BLOG = "https://cors-proxy1.vercel.app/api/proxy?url=";
+
+    let articleLines = [];
 
 /* ============================================================
    SCRAPER — menggunakan CORS PROXY VERCEL
@@ -60,24 +62,22 @@ async function scrape() {
         `<div class="text-secondary">Mengambil data...</div>`;
 
     try {
-        const proxyURL =
-            "https://cors-proxy1.vercel.app/api/proxy?url=" +
-            encodeURIComponent(url);
-
-        const res = await fetch(proxyURL);
+        const proxyUrl = PROXY_BLOG + encodeURIComponent(url);
+        const res = await fetch(proxyUrl);
+        if (!res.ok) throw new Error("Gagal mengambil blog via proxy");
         const htmlText = await res.text();
 
         const parser = new DOMParser();
         const doc = parser.parseFromString(htmlText, "text/html");
 
-        const article = doc.querySelector("div.box-article");
-
-        if (!article) {
+        // Ambil semua elemen box-article
+        const articles = doc.querySelectorAll(".box-article");
+        if (articles.length === 0) {
             document.getElementById("resultFinal").innerHTML =
-                `<div class="text-danger">Gagal menemukan box-article</div>`;
+                `<div class="text-danger">Tidak menemukan elemen <div class='box-article'>.</div>`;
             return;
         }
-
+        
         // Perbaiki URL gambar
         let html = article.innerHTML.replace(
             /<img\s+src="(\/[^"]*)"/g,
