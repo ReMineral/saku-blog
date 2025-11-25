@@ -2,28 +2,83 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Scraper Blog Sakurazaka46 (Tag Mentah + Romaji + Terjemahan)</title>
-
-<!-- Bootstrap -->
+<title>Scraper Blog Sakurazaka46 (Tag Mentah + Terjemahan + Romaji)</title>
+<script src="https://unpkg.com/wanakana"></script>
+<!-- Bootstrap 5 CSS -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 
 <style>
+/* --- Background Image & Centering --- */
 body {
     height: 100vh;
     margin: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #f0f0f0;
+    background: url('https://github.com/ReMineral/saku-blog/blob/main/5th_TOUR_2025%2013.jpg?raw=true') center/cover no-repeat;
+    position: relative;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
+body::before {
+    content: "";
+    position: absolute;
+    top:0;
+    left:0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.4); /* overlay gelap 40% */
+    z-index: 0;
+}
+
+/* --- Container --- */
 .container-scraper {
+    position: relative; /* di atas overlay */
+    z-index: 1;
     max-width: 900px;
     width: 90%;
-    background: white;
+    background: rgba(255,255,255,0.95);
     padding: 30px;
     border-radius: 15px;
-    box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+}
+
+/* --- Typography --- */
+h2 { margin-bottom: 20px; color: #0984e3; display: flex; justify-content: center;}
+h3 { margin-top: 30px; margin-bottom: 10px; color: #6c5ce7; }
+
+/* --- Input & Button --- */
+input {
+    width: 100%;
+    padding: 12px;
+    font-size: 16px;
+    border: 1px solid #dfe6e9;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    transition: all 0.2s;
+}
+input:focus { border-color: #0984e3; outline: none; box-shadow: 0 0 5px rgba(0,123,255,0.3); }
+
+button {
+    padding: 10px 20px;
+    font-size: 16px;
+    border: none;
+    border-radius: 8px;
+    width: 100%;
+    background: #00b894;
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 20px;
+}
+button:hover { background: #019875; }
+
+/* --- Output Container --- */
+#resultFinal {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 6px 15px rgba(0,0,0,0.1);
 }
 
 pre {
@@ -31,166 +86,136 @@ pre {
     padding: 15px;
     border-radius: 8px;
     overflow-x: auto;
+    overflow-y: auto;      /* aktifkan scroll vertikal */
+    max-height: 600px;     /* tinggi maksimum kotak output */
     white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 14px;
+    margin-top: 10px;
+}
+.text-danger
+    display: flex;
+    justify-content: center;
+
+/* Tombol copy di atas pre */
+#resultFinal button {
+    margin-bottom: 10px;
+}
+
+/* Responsive */
+@media(max-width: 600px){
+    input, button { font-size: 14px; padding: 10px; }
+    pre { font-size: 13px; }
 }
 </style>
 </head>
-
 <body>
+
 <div class="container-scraper">
-    <h2 class="text-center mb-3">SAKAMICHI ARTICLE GRABBER</h2>
+  <h2>SAKAMICHI ARTICLE GRABBER</h2>
 
-    <input id="urlInput" class="form-control mb-2" placeholder="Tempel URL blog Sakurazaka46">
-    <button onclick="scrape()" class="btn btn-success w-100 mb-3">Ambil Artikel</button>
+  <input id="urlInput" placeholder="Tempel link blog Sakurazaka46 di sini">
+  <button onclick="scrape()">Ambil Artikel</button>
 
-    <div id="resultFinal"></div>
+  <div id="resultFinal"></div>
 </div>
 
 <script>
 let articleLines = [];
 
-/* ============================================================
-   SCRAPER — menggunakan CORS PROXY VERCEL
-============================================================ */
+// ------------------- Scrape -------------------
 async function scrape() {
     const url = document.getElementById("urlInput").value;
-    if (!url) return alert("Masukkan URL!");
-
-    document.getElementById("resultFinal").innerHTML =
-        `<div class="text-secondary">Mengambil data...</div>`;
+    if (!url) return alert("Masukkan URL dulu!");
+    document.getElementById("resultFinal").innerHTML = `<div class="text-secondary">Mengambil data...</div>`;
 
     try {
-        const proxyURL =
-            "https://cors-proxy1.vercel.app/api/proxy?url=" +
-            encodeURIComponent(url);
-
+        const proxyURL = "https://api.allorigins.win/get?url=" + encodeURIComponent(url);
         const res = await fetch(proxyURL);
-        const htmlText = await res.text();
+        const data = await res.json();
 
         const parser = new DOMParser();
-        const doc = parser.parseFromString(htmlText, "text/html");
-
+        const doc = parser.parseFromString(data.contents, "text/html");
         const article = doc.querySelector("div.box-article");
-
         if (!article) {
-            document.getElementById("resultFinal").innerHTML =
-                `<div class="text-danger">Gagal menemukan box-article</div>`;
+            document.getElementById("resultFinal").innerHTML = `<div class="text-danger">Tidak menemukan box-article</div>`;
             return;
         }
 
-        // Perbaiki URL gambar
-        let html = article.innerHTML.replace(
-            /<img\s+src="(\/[^"]*)"/g,
-            '<img src="https://sakurazaka46.com$1"'
-        );
+        let html = article.innerHTML;
+        html = html.replace(/<img\s+src="(\/[^"]*)"/g, '<img src="https://sakurazaka46.com$1"');
 
-        // Pecah berdasarkan <br>
         articleLines = html
             .split(/(<br\s*\/?>)/i)
-            .map(l => l.trim())
-            .filter(l => l.length > 0);
+            .map(line => line.trim())
+            .filter(line => line.length > 0);
 
         await buildOutputFinal();
 
     } catch (err) {
-        document.getElementById("resultFinal").innerHTML =
-            `<div class="text-danger">ERROR: ${err.message}</div>`;
+        document.getElementById("resultFinal").innerHTML = `<div class="text-danger">Error: ${err.message}</div>`;
     }
 }
 
-/* ============================================================
-   GEMINI (single-request mode)
-============================================================ */
-async function geminiCall(prompt) {
-    try {
-        const res = await fetch(
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIzaSyD9HGZ6pIVouEgiaTS_dFnVod-kafD0RWk",
-            {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-    prompt: [{ text: prompt }],
-    temperature: 0,
-    maxOutputTokens: 1024
-})
-
-            }
-        );
-
-        return await res.json();
-
-    } catch (err) {
-        return { error: err.message };
-    }
-}
-
-/* ============================================================
-   BUILD OUTPUT (tag asli + romaji + terjemahan)
-============================================================ */
+// ------------------- OUTPUT FINAL -------------------
 async function buildOutputFinal() {
 
-    let escapedBlocks = [];
-    let textBlocks = [];
+    async function geminiCall(prompt) {
+        try {
+            const res = await fetch(
+                "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIzaSyBFMgAVBEqTI1QfGWaPj1nGt1QdY4um85M",
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }]
+                    })
+                }
+            );
+            const data = await res.json();
+            return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        } 
+        catch (err) {
+            return "(error AI)";
+        }
+    }
+
+    const finalLines = [];
 
     for (let line of articleLines) {
-
-        const escaped = line
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;");
-
         const textOnly = line.replace(/<[^>]+>/g, "").trim();
         if (!textOnly) continue;
 
-        escapedBlocks.push(escaped);
-        textBlocks.push(textOnly);
+        // 1️⃣ ROMAJI via Gemini
+        const romaji = await geminiCall(
+            `Ubah teks Jepang berikut menjadi romaji yang benar, hanya romaji tanpa penjelasan tambahan:\n\n${textOnly}`
+        );
+
+        // 2️⃣ TERJEMAHAN via Gemini
+        const terjemah = await geminiCall(
+            `Terjemahkan teks Jepang berikut ke bahasa Indonesia, berikan hanya hasilnya tanpa penjelasan:\n\n${textOnly}`
+        );
+
+        // Output 2 baris
+        finalLines.push(`${romaji}\n${terjemah}\n`);
     }
-
-    const prompt =
-`Berikut daftar kalimat Jepang.
-Untuk setiap BARIS:
-- Hasilkan ROMAJI secara akurat.
-- Hasilkan TERJEMAH ke Bahasa Indonesia.
-Format:
-
-ROMAJI: ...
-INDO: ...
-
-==========================
-
-` + textBlocks.map((t,i)=>`BARIS ${i+1}: ${t}`).join("\n");
-
-    const ai = await geminiCall(prompt);
-
-    if (!ai.candidates) {
-        document.getElementById("resultFinal").innerHTML =
-            `<div class='text-danger'>Gagal parse JSON AI.<br>${JSON.stringify(ai)}</div>`;
-        return;
-    }
-
-    const aiText = ai.candidates[0].content.parts[0].text;
-
-    const blocks = aiText.split(/BARIS \d+:/).slice(1);
-
-    const final = blocks.map((blk, i) => {
-        const romaji = (blk.match(/ROMAJI:\s*([\s\S]*?)INDO:/) || ["",""])[1].trim();
-        const indo   = (blk.match(/INDO:\s*([\s\S]*)/) || ["",""])[1].trim();
-
-        return `${escapedBlocks[i]}\n${romaji}\n${indo}\n`;
-    });
 
     document.getElementById("resultFinal").innerHTML = `
-        <h3 class="text-purple">OUTPUT — Tag Mentah + Romaji + Terjemahan</h3>
-        <button class="btn btn-primary mb-3" onclick="copyFinal()">Copy</button>
-        <pre id="finalContent">${final.join("\n")}</pre>
+        <h3 class="text-purple">OUTPUT — Romaji + Terjemahan</h3>
+        <button onclick="copyFinal()" class="btn btn-primary mb-2">Copy</button>
+        <div class="card p-3">
+            <pre id="finalContent" class="mb-0"></pre>
+        </div>
     `;
+
+    document.getElementById("finalContent").textContent = finalLines.join("\n");
 }
 
-/* ============================================================
-   COPY
-============================================================ */
+
+// Copy
 function copyFinal() {
-    const text = document.getElementById("finalContent").textContent;
-    navigator.clipboard.writeText(text).then(() => alert("Copied!"));
+    const content = document.getElementById("finalContent").textContent;
+    navigator.clipboard.writeText(content).then(() => alert("Copied!"));
 }
 </script>
 
