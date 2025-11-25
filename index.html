@@ -2,8 +2,9 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Scraper Blog Sakurazaka46 (Tag Mentah + Terjemahan + Romaji)</title>
-<script src="https://unpkg.com/wanakana"></script>
+<title>Scraper Blog Sakurazaka46 (Tag Mentah + Romaji + Terjemahan)</title>
+
+<!-- Bootstrap -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 
 <style>
@@ -13,66 +14,16 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: url('https://github.com/ReMineral/saku-blog/blob/main/5th_TOUR_2025%2013.jpg?raw=true') center/cover no-repeat;
-    position: relative;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-}
-
-body::before {
-    content: "";
-    position: absolute;
-    top:0;
-    left:0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0,0,0,0.4);
-    z-index: 0;
+    background: #f0f0f0;
 }
 
 .container-scraper {
-    position: relative;
-    z-index: 1;
     max-width: 900px;
     width: 90%;
-    background: rgba(255,255,255,0.95);
+    background: white;
     padding: 30px;
     border-radius: 15px;
-    box-shadow: 0 8px 20px rgba(0,0,0,0.3);
-}
-
-h2 { margin-bottom: 20px; color: #0984e3; display: flex; justify-content: center;}
-h3 { margin-top: 30px; margin-bottom: 10px; color: #6c5ce7; }
-
-input {
-    width: 100%;
-    padding: 12px;
-    font-size: 16px;
-    border: 1px solid #dfe6e9;
-    border-radius: 8px;
-    margin-bottom: 10px;
-    transition: all 0.2s;
-}
-input:focus { border-color: #0984e3; outline: none; box-shadow: 0 0 5px rgba(0,123,255,0.3); }
-
-button {
-    padding: 10px 20px;
-    font-size: 16px;
-    border: none;
-    border-radius: 8px;
-    width: 100%;
-    background: #00b894;
-    color: #fff;
-    cursor: pointer;
-    transition: all 0.2s;
-    margin-bottom: 20px;
-}
-button:hover { background: #019875; }
-
-#resultFinal {
-    background: #fff;
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.2);
 }
 
 pre {
@@ -80,167 +31,166 @@ pre {
     padding: 15px;
     border-radius: 8px;
     overflow-x: auto;
-    overflow-y: auto;
-    max-height: 600px;
     white-space: pre-wrap;
-    word-break: break-word;
-    font-size: 14px;
-    margin-top: 10px;
-}
-
-#resultFinal button {
-    margin-bottom: 10px;
-}
-
-@media(max-width: 600px){
-    input, button { font-size: 14px; padding: 10px; }
-    pre { font-size: 13px; }
 }
 </style>
 </head>
+
 <body>
-
 <div class="container-scraper">
-  <h2>SAKAMICHI ARTICLE GRABBER</h2>
+    <h2 class="text-center mb-3">SAKAMICHI ARTICLE GRABBER</h2>
 
-  <input id="urlInput" placeholder="Tempel link blog Sakurazaka46 di sini">
-  <button onclick="scrape()">Ambil Artikel</button>
+    <input id="urlInput" class="form-control mb-2" placeholder="Tempel URL blog Sakurazaka46">
+    <button onclick="scrape()" class="btn btn-success w-100 mb-3">Ambil Artikel</button>
 
-  <div id="resultFinal"></div>
+    <div id="resultFinal"></div>
 </div>
 
 <script>
 let articleLines = [];
 
-// ------------------- Scrape -------------------
+/* ============================================================
+   SCRAPER — menggunakan corsproxy.io (AMANKAN CORS)
+============================================================ */
 async function scrape() {
     const url = document.getElementById("urlInput").value;
-    if (!url) return alert("Masukkan URL dulu!");
-    document.getElementById("resultFinal").innerHTML = `<div class="text-secondary">Mengambil data...</div>`;
+    if (!url) return alert("Masukkan URL!");
+
+    document.getElementById("resultFinal").innerHTML =
+        `<div class="text-secondary">Mengambil data...</div>`;
 
     try {
-        const proxyURL = "https://api.allorigins.win/get?url=" + encodeURIComponent(url);
+        const proxyURL = "https://corsproxy.io/?" + encodeURIComponent(url);
         const res = await fetch(proxyURL);
-        const data = await res.json();
+        const htmlText = await res.text();
 
         const parser = new DOMParser();
-        const doc = parser.parseFromString(data.contents, "text/html");
+        const doc = parser.parseFromString(htmlText, "text/html");
+
         const article = doc.querySelector("div.box-article");
         if (!article) {
-            document.getElementById("resultFinal").innerHTML = `<div class="text-danger">Tidak menemukan box-article</div>`;
+            document.getElementById("resultFinal").innerHTML =
+                `<div class="text-danger">Gagal menemukan box-article</div>`;
             return;
         }
 
-        let html = article.innerHTML;
-        html = html.replace(/<img\s+src="(\/[^"]*)"/g, '<img src="https://sakurazaka46.com$1"');
+        // Perbaiki URL gambar
+        let html = article.innerHTML.replace(
+            /<img\s+src="(\/[^"]*)"/g,
+            '<img src="https://sakurazaka46.com$1"'
+        );
 
+        // Pecah berdasarkan <br>
         articleLines = html
             .split(/(<br\s*\/?>)/i)
-            .map(line => line.trim())
-            .filter(line => line.length > 0);
+            .map(l => l.trim())
+            .filter(l => l.length > 0);
 
         await buildOutputFinal();
 
     } catch (err) {
-        document.getElementById("resultFinal").innerHTML = `<div class="text-danger">Error: ${err.message}</div>`;
+        document.getElementById("resultFinal").innerHTML =
+            `<div class="text-danger">ERROR: ${err.message}</div>`;
     }
 }
 
-// ------------------- OUTPUT FINAL -------------------
+/* ============================================================
+   GEMINI (single-request mode)
+============================================================ */
+async function geminiCall(prompt) {
+    try {
+        const res = await fetch(
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIzaSyD9HGZ6pIVouEgiaTS_dFnVod-kafD0RWk",
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }]
+                })
+            }
+        );
+
+        return await res.json();
+
+    } catch (err) {
+        return { error: err.message };
+    }
+}
+
+/* ============================================================
+   BUILD OUTPUT (tag asli + romaji + terjemahan)
+============================================================ */
 async function buildOutputFinal() {
 
-    async function geminiCall(prompt) {
-        try {
-            const res = await fetch(
-                "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIzaSyD9HGZ6pIVouEgiaTS_dFnVod-kafD0RWk",
-                {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }]
-                    })
-                }
-            );
-            const data = await res.json();
-            return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-        } 
-        catch (err) {
-            return "(error AI)";
-        }
-    }
-
-    let textBlocks = [];
+    // 1) Kumpulkan block teks
     let escapedBlocks = [];
+    let textBlocks = [];
 
     for (let line of articleLines) {
-        const escapedLine = line
+
+        // escape semua tag HTML
+        const escaped = line
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;");
 
         const textOnly = line.replace(/<[^>]+>/g, "").trim();
         if (!textOnly) continue;
 
-        escapedBlocks.push(escapedLine);
+        escapedBlocks.push(escaped);
         textBlocks.push(textOnly);
     }
 
-    // -----------------------------
-    // PROMPT JSON (Fix Output Kosong)
-    // -----------------------------
+    // 2) Prompt untuk AI (sekali saja)
     const prompt =
-`Saya memberikan daftar teks Jepang. Untuk setiap baris, berikan output dalam format JSON seperti berikut:
+`Berikut daftar kalimat Jepang.
+Untuk setiap BARIS:
+- Hasilkan ROMAJI secara akurat.
+- Hasilkan TERJEMAH ke Bahasa Indonesia.
+Format **WAJIB**:
 
-[
-  {
-    "romaji": "....",
-    "indo": "...."
-  }
-]
+ROMAJI: ...
+INDO: ...
 
-JANGAN beri teks di luar JSON.
+==========================
 
-Daftar teks:
-${textBlocks.join("\n")}`;
+` + textBlocks.map((t,i)=>`BARIS ${i+1}: ${t}`).join("\n");
 
-    const aiOutput = await geminiCall(prompt);
+    // 3) Panggil Gemini sekali saja
+    const ai = await geminiCall(prompt);
 
-    // -----------------------------
-    // PARSE JSON AI
-    // -----------------------------
-    let parsed = [];
-    try {
-        parsed = JSON.parse(aiOutput);
-    } catch (e) {
-        console.log("AI Output tidak sesuai JSON:", aiOutput);
-        alert("Gagal parse JSON. Periksa console.");
+    if (!ai.candidates) {
+        document.getElementById("resultFinal").innerHTML =
+            `<div class='text-danger'>Gagal parse JSON AI.<br>${JSON.stringify(ai)}</div>`;
         return;
     }
 
-    // -----------------------------
-    // Gabungkan escaped + romaji + indo
-    // -----------------------------
-    const finalLines = parsed.map((obj, i) => {
-        return `${escapedBlocks[i]}\n${obj.romaji}\n${obj.indo}\n`;
+    const aiText = ai.candidates[0].content.parts[0].text;
+
+    // Pecah berdasarkan BARIS n:
+    const blocks = aiText.split(/BARIS \d+:/).slice(1);
+
+    // 4) Gabungkan hasil
+    const final = blocks.map((blk, i) => {
+        const romaji = (blk.match(/ROMAJI:\s*([\s\S]*?)INDO:/) || ["",""])[1].trim();
+        const indo   = (blk.match(/INDO:\s*([\s\S]*)/) || ["",""])[1].trim();
+
+        return `${escapedBlocks[i]}\n${romaji}\n${indo}\n`;
     });
 
-    // -----------------------------
-    // Tampilkan output
-    // -----------------------------
+    // 5) Render ke halaman
     document.getElementById("resultFinal").innerHTML = `
-        <h3 class="text-purple">OUTPUT — Jepang + Romaji + Terjemahan</h3>
-        <button onclick="copyFinal()" class="btn btn-primary mb-2">Copy</button>
-        <div class="card p-3">
-            <pre id="finalContent" class="mb-0"></pre>
-        </div>
+        <h3 class="text-purple">OUTPUT — Tag Mentah + Romaji + Terjemahan</h3>
+        <button class="btn btn-primary mb-3" onclick="copyFinal()">Copy</button>
+        <pre id="finalContent">${final.join("\n")}</pre>
     `;
-
-    document.getElementById("finalContent").textContent = finalLines.join("\n");
 }
 
+/* ============================================================
+   COPY
+============================================================ */
 function copyFinal() {
-    const content = document.getElementById("finalContent").textContent;
-    navigator.clipboard.writeText(content)
-        .then(() => alert("Copied!"));
+    const text = document.getElementById("finalContent").textContent;
+    navigator.clipboard.writeText(text).then(() => alert("Copied!"));
 }
 </script>
 
