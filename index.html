@@ -8,19 +8,21 @@
 body { font-family: Arial, sans-serif; margin: 20px; }
 #output { width: 100%; height: 500px; overflow: auto; border: 1px solid #ccc; padding: 10px; white-space: pre-wrap; background: #f9f9f9; }
 button { margin-bottom: 10px; }
+input { margin-bottom: 10px; padding: 5px; }
 </style>
 </head>
 <body>
 
 <h2>Scraper Blog Sakurazaka46 (via Proxy)</h2>
 <input type="text" id="blogUrl" placeholder="Masukkan URL blog" style="width: 80%;" />
+<br/>
 <button id="startBtn">Mulai Scrape</button>
 <button id="copyBtn">Copy Output</button>
 <div id="output">Hasil akan muncul di sini...</div>
 
 <script>
 const API_KEY = "AIzaSyD9HGZ6pIVouEgiaTS_dFnVod-kafD0RWk"; // Gemini API Key
-const PROXY = "https://cors-proxy1.vercel.app/"; // Proxy untuk menghindari CORS
+const PROXY = "https://cors-proxy1.vercel.app/api/proxy?url="; // Proxy Vercel
 
 async function translateText(text) {
     const prompt = `Ubah teks Jepang berikut menjadi 2 baris: 
@@ -49,11 +51,12 @@ async function scrapeBlog(url) {
     output.text("Loading...");
 
     try {
-        // Ambil HTML via proxy
-        const res = await fetch(PROXY + url);
-        const htmlText = await res.text();
+        // Encode URL sebelum dikirim ke proxy
+        const proxyUrl = PROXY + encodeURIComponent(url);
+        const res = await fetch(proxyUrl);
+        if (!res.ok) throw new Error("Failed to fetch blog via proxy");
 
-        // Buat DOM parser
+        const htmlText = await res.text();
         const parser = new DOMParser();
         const doc = parser.parseFromString(htmlText, "text/html");
 
@@ -69,6 +72,7 @@ async function scrapeBlog(url) {
             const htmlContent = fixImageLinks(articles[i].innerHTML);
             const jpText = articles[i].innerText.trim();
 
+            // Panggil AI Gemini hanya untuk romaji + terjemahan
             const aiResult = await translateText(jpText);
 
             const combined = `
@@ -86,11 +90,13 @@ ${aiResult}
     }
 }
 
+// Tombol Mulai Scrape
 $("#startBtn").click(() => {
     const url = $("#blogUrl").val().trim();
     if (url) scrapeBlog(url);
 });
 
+// Tombol Copy Output
 $("#copyBtn").click(() => {
     const text = $("#output").text();
     navigator.clipboard.writeText(text).then(() => alert("Copied!"));
