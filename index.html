@@ -180,28 +180,64 @@ async function buildOutputFinal() {
         }
     }
 
-    const finalLines = [];
+    // -----------------------------
+    // 1) Kumpulkan semua baris textOnly
+    // -----------------------------
+    let textBlocks = [];
+    let escapedBlocks = [];
 
     for (let line of articleLines) {
+        const escapedLine = line
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+
         const textOnly = line.replace(/<[^>]+>/g, "").trim();
         if (!textOnly) continue;
 
-        // 1️⃣ ROMAJI via Gemini
-        const romaji = await geminiCall(
-            `Ubah teks Jepang berikut menjadi romaji yang benar, hanya romaji tanpa penjelasan tambahan:\n\n${textOnly}`
-        );
-
-        // 2️⃣ TERJEMAHAN via Gemini
-        const terjemah = await geminiCall(
-            `Terjemahkan teks Jepang berikut ke bahasa Indonesia, berikan hanya hasilnya tanpa penjelasan:\n\n${textOnly}`
-        );
-
-        // Output 2 baris
-        finalLines.push(`${romaji}\n${terjemah}\n`);
+        escapedBlocks.push(escapedLine);
+        textBlocks.push(textOnly);
     }
 
+    // -----------------------------
+    // 2) Buat 1 prompt saja untuk semua baris
+    // -----------------------------
+    const prompt =
+`Berikut adalah kumpulan teks Jepang. Untuk setiap baris:
+
+1. Ubah ke ROMAJI (akurasi tinggi).
+2. Terjemahkan ke Bahasa Indonesia.
+3. Berikan hasil dengan format persis seperti ini:
+
+ROMAJI: ....
+INDO: ....
+
+==========================`
+
+    + "\n"
+    + textBlocks.map((t, i) => `BARIS ${i+1}: ${t}`).join("\n");
+
+    // -----------------------------
+    // 3) Panggil Gemini (Hanya sekali)
+    // -----------------------------
+    const aiOutput = await geminiCall(prompt);
+
+    // -----------------------------
+    // 4) Parsing hasil Gemini
+    // -----------------------------
+    const lines = aiOutput.split(/BARIS \d+:/).slice(1);
+
+    const finalLines = lines.map((block, i) => {
+        const romaji = (block.match(/ROMAJI:\s*([\s\S]*?)INDO:/) || [,""])[1].trim();
+        const indo   = (block.match(/INDO:\s*([\s\S]*)/) || [,""])[1].trim();
+
+        return `${escapedBlocks[i]}\n${romaji}\n${indo}\n`;
+    });
+
+    // -----------------------------
+    // 5) Tampilkan output
+    // -----------------------------
     document.getElementById("resultFinal").innerHTML = `
-        <h3 class="text-purple">OUTPUT — Romaji + Terjemahan</h3>
+        <h3 class="text-purple">OUTPUT — Jepang + Romaji + Terjemahan</h3>
         <button onclick="copyFinal()" class="btn btn-primary mb-2">Copy</button>
         <div class="card p-3">
             <pre id="finalContent" class="mb-0"></pre>
@@ -215,8 +251,10 @@ async function buildOutputFinal() {
 // Copy
 function copyFinal() {
     const content = document.getElementById("finalContent").textContent;
-    navigator.clipboard.writeText(content).then(() => alert("Copied!"));
+    navigator.clipboard.writeText(content)
+        .then(() => alert("Copied!"));
 }
+
 </script>
 
 </body>
