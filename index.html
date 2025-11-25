@@ -47,7 +47,7 @@ pre {
 </div>
 
 <script>
-// Fungsi utama scrape dan terjemahkan
+// Fungsi utama scrape dan terjemahkan dengan Gemini
 async function scrape() {
     const url = document.getElementById('urlInput').value;
     if (!url) return alert('Masukkan URL blog dulu!');
@@ -74,13 +74,9 @@ async function scrape() {
         const articles = Array.from(doc.querySelectorAll('.box-article'));
         if (articles.length === 0) throw new Error('Tidak ada <div class="box-article"> ditemukan');
 
-        // Simpan isi di session storage
-        const articleContents = articles.map(div => div.innerHTML);
-        sessionStorage.setItem('scrapedArticles', JSON.stringify(articleContents));
-
         // Perbaiki link gambar
-        const fixedArticles = articleContents.map(html => 
-            html.replace(/<img\s+[^>]*src="(?!https?:\/\/)([^"]+)"/g, '<img src="https://sakurazaka46.com/$1"')
+        const fixedArticles = articles.map(div => 
+            div.innerHTML.replace(/<img\s+[^>]*src="(?!https?:\/\/)([^"]+)"/g, '<img src="https://sakurazaka46.com/$1"')
         );
 
         resultDiv.innerHTML = `<div class="progress mb-2">
@@ -88,14 +84,18 @@ async function scrape() {
                  style="width: 100%">Mengirim ke AI untuk diterjemahkan...</div>
         </div>`;
 
-        // Terjemahkan tiap artikel
+        // Terjemahkan tiap artikel dengan geminiCall
         const translatedArticles = [];
-        for (let html of fixedArticles) {
-            const plainText = html.replace(/<[^>]+>/g, '\n'); // hanya teks
+        for (let i = 0; i < fixedArticles.length; i++) {
+            const html = fixedArticles[i];
 
+            // Ambil plain text dari HTML
+            const plainText = html.replace(/<[^>]+>/g, '\n');
+
+            // Prompt untuk Gemini
             const prompt = `
 Terjemahkan teks Jepang ke bahasa Indonesia per kata per baris.
-Format output:
+Format:
 1. Kata Jepang
 2. Romaji
 3. Terjemahan
@@ -103,8 +103,18 @@ Tetap pertahankan line break.
 Teks: ${plainText}
             `;
 
-            const aiRes = await callGeminiAPI(prompt);
-            translatedArticles.push(aiRes);
+            // Panggil Gemini untuk menerjemahkan
+            const aiRes = await geminiCall(prompt);
+
+            // Ambil hasil text dari response
+            let translatedText = '';
+            if (aiRes?.candidates?.[0]?.content?.[0]?.text) {
+                translatedText = aiRes.candidates[0].content[0].text;
+            } else {
+                translatedText = 'Terjadi kesalahan saat menerjemahkan';
+            }
+
+            translatedArticles.push(translatedText);
         }
 
         // Tampilkan hasil
@@ -115,32 +125,24 @@ Teks: ${plainText}
     }
 }
 
-// Panggil Gemini API Google
-async function callGeminiAPI(prompt) {
-    const apiKey = 'AIzaSyD9HGZ6pIVouEgiaTS_dFnVod-kafD0RWk'; // jangan share publik
-    const endpoint = 'https://us-central1-aiplatform.googleapis.com/v1/projects/YOUR_PROJECT_ID/locations/us-central1/publishers/google/models/text-bison-001:predict';
-
-    const payload = {
-        instances: [
+/* Fungsi Gemini untuk menerjemahkan teks */
+async function geminiCall(prompt) {
+    try {
+        const res = await fetch(
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIzaSyD9HGZ6pIVouEgiaTS_dFnVod-kafD0RWk",
             {
-                content: prompt
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
             }
-        ]
-    };
-
-    const res = await fetch(endpoint + `?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    });
-
-    if (!res.ok) throw new Error('Terjadi error API');
-
-    const data = await res.json();
-    // Ambil hasil text saja, tergantung response Gemini
-    return data?.predictions?.[0]?.content || 'Tidak ada hasil';
+        );
+        return await res.json();
+    } catch (err) {
+        return { error: err.message };
+    }
 }
 </script>
+
 
 </body>
 </html>
