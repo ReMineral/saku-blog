@@ -270,7 +270,7 @@ ${original}
         finalOut.push(merged);
     }
 
-        document.getElementById("resultFinal").innerHTML = `
+            document.getElementById("resultFinal").innerHTML = `
         <h3 class="text-purple">OUTPUTnya, Silakan sayang~~ </h3>
         <button onclick="copyFinal()" class="btn btn-primary mb-2">Copy</button>
 
@@ -280,15 +280,24 @@ ${original}
         </div>
     `;
 
+    hideLoading();  
+    document.getElementById("finalContent").textContent = finalOut.join("\n");
+}   // ← ← PENUTUP buildOutputFinal() YANG HILANG !!!
+/*  =============================
+    END OF buildOutputFinal()
+    ============================= */
 
-  let progressInterval = null;
+
+/* =====================
+   PROGRESS BAR LOADING
+=====================*/
+let progressInterval = null;
 
 function showLoading() {
     const wrapper = document.getElementById("loadingAI");
     wrapper.style.display = "block";
 
     let p = 0;
-
     document.getElementById("progressText").textContent = "0%";
     document.getElementById("progressBar").style.width = "0%";
 
@@ -297,7 +306,7 @@ function showLoading() {
         p++;
         document.getElementById("progressText").textContent = p + "%";
         document.getElementById("progressBar").style.width = p + "%";
-    }, 80); // kecepatan
+    }, 80);
 }
 
 function hideLoading() {
@@ -307,15 +316,19 @@ function hideLoading() {
 
     setTimeout(() => {
         document.getElementById("loadingAI").style.display = "none";
-    }, 400); // delay kecil biar terlihat 100%
+    }, 400);
 }
 
 
+/* =====================
+   COPY BUTTON
+=====================*/
 function copyFinal() {
     navigator.clipboard.writeText(
         document.getElementById("finalContent").textContent
     ).then(() => alert("Copied!"));
 }
+
 
 /* =====================
    FULL SIZE TOGGLE
@@ -325,19 +338,10 @@ function toggleFull() {
     const btn = document.getElementById("fullBtn");
 
     box.classList.toggle("full");
-
     btn.textContent = box.classList.contains("full")
         ? "Kecilkan"
         : "Full Size";
 }
-    function showLoading() {
-    document.getElementById("loadingAI").style.display = "block";
-}
-
-function hideLoading() {
-    document.getElementById("loadingAI").style.display = "none";
-}
-
 </script>
 
 </body>
